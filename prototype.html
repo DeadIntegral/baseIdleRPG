@@ -18,17 +18,23 @@ var setting = {
 	playTime:0,
 	playTTick:[1000,1000],
 	bEnemy:{},
-	bUser:{}
+	bUser:{},
+
+	animation:{
+		clickAtkAni:1
+	}
 };
 
 var progress = {
 	currentMap:0,
 	currentENum:0,
 	arrayENum:0,
+	bossChk:0,
 	uTime:[],
 	eTime:[],
 	eList:[],
-	bOutList:[]
+	bOutList:[],
+	openField:[],
 };
 
 var uData = {
@@ -44,19 +50,22 @@ var uData = {
 };
 
 var fData = {
-	101: { name:'forest', common:[101,102,103,104], boss:103 }
+	101: { name:'forest', common:[101,102,103,104], boss:105 }
 };
 
 var eData = {
 	101:{ name:'다람쥐', mhp:10, nhp:10, attack:5, atkDelay:2000, exp:1 },
 	102:{ name:'토끼', mhp:20, nhp:20, attack:10, atkDelay:2000, exp:2 },
-	103:{ name:'사슴', mhp:100, nhp:100, attack:15, atkDelay:2000, exp:3 },
-	104:{ name:'여우', mhp:80, nhp:80, attack:20, atkDelay:1000, exp:4 },
+	103:{ name:'여우', mhp:40, nhp:40, attack:15, atkDelay:1000, exp:3 },
+	104:{ name:'사슴', mhp:80, nhp:80, attack:30, atkDelay:2500, exp:5 },
+	105:{ name:'늑대', mhp:150, nhp:150, attack:25, atkDelay:1100, exp:8 },
 	1001:{ name:'human ', mhp:100, nhp:100, attack:15, atkDelay:2000, exp:3 },
 };
 
 var bData = {
-	101:{ name:'근력 훈련', descript:'', originNExp:1, currentNExp:1, increment:1, effect:{ attack:1 }, count:0 }
+	101:{ name:'훈련', descript:'', originNExp:1, currentNExp:1, increment:1, effect:{ attack:1 }, count:0 },
+	102:{ name:'???', descript:'', originNExp:100, currentNExp:100, increment:5, effect:{ attack:5 }, count:0 },
+	201:{ name:'식사', descript:'', originNExp:1, currentNExp:1, increment:1, effect:{ mhp:10, nhp:10 }, count:0 },
 };
 </script>
 
@@ -72,6 +81,8 @@ var bData = {
 <div id="enemyPlace">
 	<span id="enemyName">e</span>:<span id="enemyData"></span>
 </div>
+<div id="sidePlace">
+</div>
 <div id="bList"></div>
 
 <script>
@@ -81,8 +92,10 @@ var bData = {
 	var Init = function(){
 		tickCalcul();
 
+		progress.openField.push(101);
+
 		setting.currentMap = 101;
-		setting.bOutList = [101];
+		setting.bOutList = [101, 201];
 		battleInit();
 		battleStart();
 		$('#enemyPlace').off('click').on('click', function(){
@@ -101,27 +114,50 @@ var bData = {
 		progress.uTime[0] = progress.uTime[1] = setting.bUser.atkDelay;
 		PrintFunc.userHPOut();
 
-		setting.currentENum = progress.eList[progress.arrayENum];
+		if(progress.bossChk === 1){
+			setting.currentENum = fData[setting.currentMap]['boss'];
+		}else{
+			setting.currentENum = progress.eList[progress.arrayENum];
+		}
 		setting.bEnemy = undefined;
 		setting.bEnemy = objClone(eData[setting.currentENum]);
 		progress.eTime[0] = progress.eTime[1] = setting.bEnemy.atkDelay;
 		$('#enemyName').html(setting.bEnemy.name);
 		PrintFunc.enemyHPOut();
 	}
-	var battleWin = function(){
+	var BattleWin = function(){
+		//유저 보상
+		var output = '';
 		uData.baseStat.exp += setting.bEnemy.exp;
-		$('#statValueExp').html(uData.baseStat.exp);
+		PrintFunc.userExpOut();
 
+		//보스전투에서 승리
+		if(progress.bossChk === 1){
+			progress.arrayENum = 0;
+			progress.bossChk = 0;
+		}
+
+		//승리 시 다음몹과의 전투
 		if(progress.eList.length - 1 > progress.arrayENum){
 			progress.arrayENum += 1;
 		}else{
+			output = '<input id="bossBattleBtn" type="button" value="보스전투">';
+			$('#sidePlace').html(output);
 			// append button battle boss
+			$('#bossBattleBtn').off('click').on('click', function(){
+				progress.bossChk = 1;
+				battleStart();
+			});
 		}
 		battleStart();
 		buildPrint();
 		// setting.currentENum = progress.eList[progress.arrayENum];
 	}
 	var battleFail = function(){
+		// 보스에게 패배시 보스전투 취소
+		if(progress.bossChk === 1){
+			progress.bossChk = 0;
+		}
 		progress.arrayENum = 0;
 		battleStart();
 	}
@@ -130,7 +166,7 @@ var bData = {
 			setting.bEnemy.nhp -= setting.bUser.clickDmg;
 			PrintFunc.enemyHPOut();
 			if(setting.bEnemy.nhp < 1){
-				battleWin();
+				BattleWin();
 			}
 		}else{
 			return false;
@@ -154,7 +190,7 @@ var bData = {
 				setting.bEnemy.nhp -= setting.bUser.attack;
 				PrintFunc.enemyHPOut();
 				if(setting.bEnemy.nhp < 1){
-					battleWin();
+					BattleWin();
 				}
 			}
 
@@ -177,6 +213,17 @@ var bData = {
 		},
 		enemyHPOut:function(){
 			$('#enemyData').html(setting.bEnemy.nhp + ' / ' + setting.bEnemy.mhp);
+		},
+		userExpOut:function(){
+			$('#statValueExp').html(uData.baseStat.exp);
+		}
+	}
+
+	var AddStatCalcul = function(obj){
+		var keys = Object.keys(obj);
+		for(var i = 0, cnt = keys.length; i < cnt; i++){
+			uData.baseStat[keys[i]] += obj[keys[i]];
+			setting.bUser[keys[i]] = uData.baseStat[keys[i]];
 		}
 	}
 
@@ -184,15 +231,24 @@ var bData = {
 		var output = '';
 		var list = setting.bOutList;
 		for(var i = 0, l = list.length; i < l; i++){
-			output += '<div class="buildListClass" code="'+bData[list[i]]+'">'+
+			output += '<div class="buildListClass" code="'+list[i]+'">'+
 			'<span>'+bData[list[i]].name+'</span>'+
 			'<span>'+bData[list[i]].currentNExp+'</span>'+
-			'<span><input class="buildBuyBtn" type="button" value="훈련"></span>'+
+			'<span><input class="buildBuyBtn" type="button" value="훈련" code="'+list[i]+'"></span>'+
 			'</div>';
 		}
 		$('#bList').html(output);
 		$('.buildBuyBtn').off('click').on('click', function(){
-			
+			var el = $(this).attr('code');
+			var needExp = bData[el].currentNExp;
+			if(uData.baseStat.exp >= needExp){
+				uData.baseStat.exp -= needExp;
+				bData[el].currentNExp += bData[el].increment;
+				bData[el].count += 1;
+				AddStatCalcul(bData[el].effect);
+				PrintFunc.userExpOut();
+				buildPrint();
+			}
 		});
 	}
 	
