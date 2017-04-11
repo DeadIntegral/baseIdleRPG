@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<noscript>
+		<meta http-equiv="Refresh" content="0; URL=http://www.enable-javascript.com/ko/">
+	</noscript>
+	<meta http-equiv="x-ua-compatible" content="ie=edge">
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+
+	<script src="./js/jquery-2.1.4.min.js"></script>
+<script>
+var system = {
+	intervalTime:100,
+};
+
+var setting = {
+	playTime:0,
+	playTTick:[1000,1000],
+	bEnemy:{},
+	bUser:{}
+};
+
+var progress = {
+	currentMap:0,
+	currentENum:0,
+	arrayENum:0,
+	uTime:[],
+	eTime:[],
+	eList:[],
+	bOutList:[]
+};
+
+var uData = {
+	baseStat:{
+		mhp:50,
+		nhp:50,
+		attack:1,
+		atkDelay:1000,
+		def:0,
+		clickDmg:1,
+		exp:0
+	}
+};
+
+var fData = {
+	101: { name:'forest', common:[101,102,103,104], boss:103 }
+};
+
+var eData = {
+	101:{ name:'다람쥐', mhp:10, nhp:10, attack:5, atkDelay:2000, exp:1 },
+	102:{ name:'토끼', mhp:20, nhp:20, attack:10, atkDelay:2000, exp:2 },
+	103:{ name:'사슴', mhp:100, nhp:100, attack:15, atkDelay:2000, exp:3 },
+	104:{ name:'여우', mhp:80, nhp:80, attack:20, atkDelay:1000, exp:4 },
+	1001:{ name:'human ', mhp:100, nhp:100, attack:15, atkDelay:2000, exp:3 },
+};
+
+var bData = {
+	101:{ name:'근력 훈련', descript:'', originNExp:1, currentNExp:1, increment:1, effect:{ attack:1 }, count:0 }
+};
+</script>
+
+</head>
+<body>
+<div id="statusTime"></div>
+<div>
+	ex:<span id="statValueExp"></span>
+</div>
+<div>
+	u:<span id="userData"></span>
+</div>
+<div id="enemyPlace">
+	<span id="enemyName">e</span>:<span id="enemyData"></span>
+</div>
+<div id="bList"></div>
+
+<script>
+
+(function(){
+	//모든 값은 변수에 담았다가 줘야함. 그렇지 않으면 참조값이 전달되어서, 본래의 값이 변경됨.
+	var Init = function(){
+		tickCalcul();
+
+		setting.currentMap = 101;
+		setting.bOutList = [101];
+		battleInit();
+		battleStart();
+		$('#enemyPlace').off('click').on('click', function(){
+			clickAttack();
+		});
+	}
+	var battleInit = function(){
+		//user die
+		progress.eList = fData[setting.currentMap]['common'];
+		// setting.currentENum = progress.eList[progress.arrayENum];
+		setting.bEnemy = undefined;
+	}
+	var battleStart = function(){
+		setting.bUser = undefined;
+		setting.bUser = objClone(uData.baseStat);
+		progress.uTime[0] = progress.uTime[1] = setting.bUser.atkDelay;
+		PrintFunc.userHPOut();
+
+		setting.currentENum = progress.eList[progress.arrayENum];
+		setting.bEnemy = undefined;
+		setting.bEnemy = objClone(eData[setting.currentENum]);
+		progress.eTime[0] = progress.eTime[1] = setting.bEnemy.atkDelay;
+		$('#enemyName').html(setting.bEnemy.name);
+		PrintFunc.enemyHPOut();
+	}
+	var battleWin = function(){
+		uData.baseStat.exp += setting.bEnemy.exp;
+		$('#statValueExp').html(uData.baseStat.exp);
+
+		if(progress.eList.length - 1 > progress.arrayENum){
+			progress.arrayENum += 1;
+		}else{
+			// append button battle boss
+		}
+		battleStart();
+		buildPrint();
+		// setting.currentENum = progress.eList[progress.arrayENum];
+	}
+	var battleFail = function(){
+		progress.arrayENum = 0;
+		battleStart();
+	}
+	var clickAttack = function(){
+		if(setting.bEnemy){
+			setting.bEnemy.nhp -= setting.bUser.clickDmg;
+			PrintFunc.enemyHPOut();
+			if(setting.bEnemy.nhp < 1){
+				battleWin();
+			}
+		}else{
+			return false;
+		}
+	}
+
+	var tickCalcul = function(){
+		setInterval(function(){
+			var interLocal = system.intervalTime;
+
+			setting.playTTick[0] -= interLocal;
+			if(setting.playTTick[0] < 1){
+				setting.playTTick[0] = setting.playTTick[1];
+				setting.playTime += 1;
+				$('#statusTime').html(setting.playTime);
+			}
+
+			progress.uTime[0] -= interLocal;
+			if(progress.uTime[0] < 1){
+				progress.uTime[0] = progress.uTime[1];
+				setting.bEnemy.nhp -= setting.bUser.attack;
+				PrintFunc.enemyHPOut();
+				if(setting.bEnemy.nhp < 1){
+					battleWin();
+				}
+			}
+
+			progress.eTime[0] -= interLocal;
+			if(progress.eTime[0] < 1){
+				progress.eTime[0] = progress.eTime[1];
+				setting.bUser.nhp -= setting.bEnemy.attack;
+				PrintFunc.userHPOut();
+				if(setting.bUser.nhp < 1){
+					battleFail();
+				}
+			}
+
+		}, system.intervalTime);
+	}
+
+	var PrintFunc = {
+		userHPOut:function(){
+			$('#userData').html(setting.bUser.nhp + ' / ' + setting.bUser.mhp);
+		},
+		enemyHPOut:function(){
+			$('#enemyData').html(setting.bEnemy.nhp + ' / ' + setting.bEnemy.mhp);
+		}
+	}
+
+	var buildPrint = function(){
+		var output = '';
+		var list = setting.bOutList;
+		for(var i = 0, l = list.length; i < l; i++){
+			output += '<div class="buildListClass" code="'+bData[list[i]]+'">'+
+			'<span>'+bData[list[i]].name+'</span>'+
+			'<span>'+bData[list[i]].currentNExp+'</span>'+
+			'<span><input class="buildBuyBtn" type="button" value="훈련"></span>'+
+			'</div>';
+		}
+		$('#bList').html(output);
+		$('.buildBuyBtn').off('click').on('click', function(){
+			
+		});
+	}
+	
+	Init();
+}());
+
+function objClone(obj) {
+	var copy, keys;
+
+	if (null === obj || typeof obj !== 'object') return obj;
+
+	// Handle Date
+	if (obj instanceof Date) {
+		copy = new Date();
+		copy.setTime(obj.getTime());
+		return copy;
+	}
+
+	// Handle Array
+	if (obj instanceof Array) {
+		copy = [];
+		for (var i = 0, len = obj.length; i < len; i++) {
+			copy[i] = objClone(obj[i]);
+		}
+		return copy;
+	}
+
+	// Handle Object
+	if (obj instanceof Object) {
+		copy = {};
+		keys = Object.keys(obj);
+		for(var i = 0, l = keys.length; i < l; i++)
+			copy[keys[i]] = objClone(obj[keys[i]]);
+		return copy;
+	}
+
+	throw new Error("Unable to copy obj! Its type isn't supported.");
+}
+</script>
+</body>
