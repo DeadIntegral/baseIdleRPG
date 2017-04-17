@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<noscript>
+		<meta http-equiv="Refresh" content="0; URL=http://www.enable-javascript.com/ko/">
+	</noscript>
+	<meta http-equiv="x-ua-compatible" content="ie=edge">
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+
+	<!-- <script src="./js/jquery-2.1.4.min.js"></script> -->
+	<script src="https://code.jquery.com/jquery-2.1.4.js"></script>
+<script>
+var system = {
+	intervalTime:100,
+};
+
+var setting = {
+	playTime:0,
+	cntLifeTime:0,
+	playTTick:[1000,1000],
+	bEnemy:{},
+	bUser:{},
+
+	animation:{
+		clickAtkAni:1
+	}
+};
+
+var progress = {
+	cntPlace:'town',
+	cntENum:0,
+	uTime:[],
+	eTime:[],
+	openField:[0],
+	tOpenList:[]
+};
+
+var uData = {
+	baseStat:{
+		mhp:50,
+		nhp:50,
+		attack:1,
+		atkDelay:1000,
+		def:0,
+		regen:1,
+		clickDmg:1,
+		exp:0,
+		death:0,
+	},
+	itme:{},
+	itemStat:{},
+	skill:{}
+};
+
+var fData = {
+	1:{ place:'town', list:[101, 102, 103] },
+	2:{ place:'city', list:[102, 103, 104] },
+}
+
+var eData = {
+	101:{ name:'다람쥐', mhp:10, nhp:10, attack:5, atkDelay:2000, exp:1 },
+	102:{ name:'토끼', mhp:20, nhp:20, attack:10, atkDelay:2000, exp:2 },
+	103:{ name:'여우', mhp:40, nhp:40, attack:15, atkDelay:1000, exp:3 },
+	104:{ name:'사슴', mhp:80, nhp:80, attack:30, atkDelay:2500, exp:5 },
+}
+
+var tData = {
+	101:{ name:'훈련', descript:'', originNExp:1, currentNExp:1, increment:1, effect:{ attack:1 }, count:0 },
+	201:{ name:'마보', descript:'', originNExp:1, currentNExp:1, increment:1, effect:{ mhp:10 }, count:0 },
+	301:{ name:'토납', descript:'', originNExp:1, currentNExp:1, increment:1, effect:{ mmp:10 }, count:0 },
+}
+
+</script>
+
+</head>
+<body>
+
+<div id="enemyList"></div>
+<div id="fieldLPlace">
+	<div class="filedItem" FdCode="1">town</div>
+	<div class="filedItem" FdCode="2">city</div>
+</div>
+<div>
+	u:<span id="userData"></span>
+</div>
+<div>
+	ex:<span id="statValueExp"></span>
+</div>
+<div>
+	death:<span id="statDeath"></span>
+</div>
+<div id="enemyPlace">
+	<span id="enemyName">e</span>:<span id="enemyData"></span>
+</div>
+
+<div id="tList"></div>
+<script>
+
+(function(){
+	var Init = function(){
+		$('#fieldLPlace').on('click', '.filedItem', function(){
+			var key = $(this).attr('FdCode');
+			movePlace(key);
+		});
+		$('#enemyList').on('click', '.enemyItem', function(){
+			var key = $(this).attr('EdCode');
+			battle.BStart(key);
+		});
+
+		progress.tOpenList = [101,201,301];
+		viewControl.trainListPrint();
+		$('#tList').on('click', '.trainItem', function(){
+			var key = $(this).attr('TdCode');
+			var needExp = tData[key].currentNExp;
+			if(uData.baseStat.exp >= needExp){
+				uData.baseStat.exp -= needExp;
+				tData[key].currentNExp += tData[key].increment;
+				tData[key].count += 1;
+				AddStatCalcul(tData[key].effect);
+				viewControl.userHPPrint();
+				viewControl.userStatPrint('exp')
+				viewControl.trainListPrint();
+			}else{
+				console.log('need more exp');
+			}
+		});
+		TickCalcul();
+	};
+	var movePlace = function(key){
+		var output = '';
+		progress.cntPlace = fData[key].place;
+		if(fData[key].list){
+			for(var i = 0, l = fData[key].list.length; i < l; i++){
+				output += '<div class="enemyItem" EdCode="'+fData[key].list[i]+'">'+eData[fData[key].list[i]].name+'</div>';
+			}
+			$('#enemyList').html(output);
+		}
+	}
+
+	var battle = {
+		BInit:function(){
+			progress.cntPlace = '';
+			//굳이 init과 start 나눠야 할지. 확장해보고 합칠지 결정하기
+		},
+		BStart:function(eNum){
+			if(progress.cntPlace !== 'battle'){
+				progress.cntENum = eNum;
+
+				setting.bUser = undefined;
+				setting.bUser = objClone(uData.baseStat);
+				// setting.bUser.attack += uData.itemStat.attack;
+				progress.uTime[0] = progress.uTime[1] = setting.bUser.atkDelay;
+				viewControl.userHPPrint();
+
+				setting.bEnemy = undefined;
+				setting.bEnemy = objClone(eData[progress.cntENum]);
+				progress.eTime[0] = progress.eTime[1] = setting.bEnemy.atkDelay;
+				viewControl.enemyHPPrint();
+
+				progress.cntPlace = 'battle';
+			}
+		},
+		BWin:function(){
+			battle.BInit();
+			uData.baseStat.exp += setting.bEnemy.exp;
+			uData.baseStat.nhp = setting.bUser.nhp;
+			// viewControl.userExpPrint();
+			viewControl.userStatPrint('exp');
+			// place를 입력하지 말고, 첫 번째 파라미터의 값을 갖고서 비교 하여 출력하기
+		},
+		BFail:function(){
+			battle.BInit();
+			uData.baseStat.exp = 0;
+			viewControl.userStatPrint('exp');
+			uData.baseStat.death += 1;
+			uData.baseStat.nhp = uData.baseStat.mhp;
+			viewControl.userHPPrint();
+			viewControl.userStatPrint('death');
+		}
+	};
+
+
+	var TickCalcul = function(){
+		setInterval(function(){
+			var interLocal = system.intervalTime;
+			setting.playTTick[0] -= interLocal;
+			if(setting.playTTick[0] < 1){
+				setting.playTTick[0] = setting.playTTick[1];
+				setting.playTime += 1;
+				setting.cntLifeTime += 1;
+				//play time
+
+				if(progress.cntPlace !== 'battle'){
+					uData.baseStat.nhp += uData.baseStat.regen;
+					uData.baseStat.nhp = (uData.baseStat.nhp > uData.baseStat.mhp) ? uData.baseStat.mhp : uData.baseStat.nhp;
+					viewControl.userBaseHP();
+				}
+			}
+
+			if(progress.cntPlace === 'battle'){
+				progress.uTime[0] -= interLocal;
+				if(progress.uTime[0] < 1){
+					progress.uTime[0] = progress.uTime[1];
+					setting.bEnemy.nhp -= setting.bUser.attack;
+					viewControl.enemyHPPrint();
+					if(setting.bEnemy.nhp < 1){
+						battle.BWin();
+					}
+				}
+
+				if(setting.bEnemy.nhp > 0){
+					progress.eTime[0] -= interLocal;
+					if(progress.eTime[0] < 1){
+						progress.eTime[0] = progress.eTime[1];
+						setting.bUser.nhp -= setting.bEnemy.attack;
+						viewControl.userHPPrint();
+						if(setting.bUser.nhp < 1){
+							battle.BFail();
+						}
+					}
+				}
+			}
+
+		}, system.intervalTime);
+	};
+
+	var viewControl = {
+		userHPPrint:function(){
+			$('#userData').html(setting.bUser.nhp + ' / ' + setting.bUser.mhp);
+		},
+		userBaseHP:function(){
+			$('#userData').html(uData.baseStat.nhp + ' / ' + uData.baseStat.mhp);
+		},
+		enemyHPPrint:function(){
+			$('#enemyData').html(setting.bEnemy.nhp + ' / ' + setting.bEnemy.mhp);
+		},
+		userExpPrint:function(){
+			$('#statValueExp').html(uData.baseStat.exp);
+		},
+		userStatPrint:function(stat){
+			var place = '';
+			if(stat === 'death'){
+				place = '#statDeath';
+			}else if(stat === 'exp'){
+				place = '#statValueExp';
+			}
+			$(place).html(uData.baseStat[stat]);
+		},
+		trainListPrint:function(){
+			var output = '';
+			var list = progress.tOpenList;
+			for(var i = 0, l = list.length; i < l; i++){
+				output += '<div>'+
+				'<span>'+tData[list[i]].name+'</span>'+
+				'<span>'+tData[list[i]].currentNExp+'</span>'+
+				'<span><input class="trainItem" type="button" value="훈련" TdCode="'+list[i]+'"></span>'+
+				'</div>'
+			}
+			$('#tList').html(output);
+		}
+	}
+
+	var AddStatCalcul = function(obj){
+		var keys = Object.keys(obj);
+		for(var i = 0, cnt = keys.length; i < cnt; i++){
+			uData.baseStat[keys[i]] += obj[keys[i]];
+			setting.bUser[keys[i]] = uData.baseStat[keys[i]];
+		}
+	}
+	Init();
+}());
+
+function objClone(obj) {
+	var copy, keys;
+
+	if (null === obj || typeof obj !== 'object') return obj;
+
+	// Handle Date
+	if (obj instanceof Date) {
+		copy = new Date();
+		copy.setTime(obj.getTime());
+		return copy;
+	}
+
+	// Handle Array
+	if (obj instanceof Array) {
+		copy = [];
+		for (var i = 0, len = obj.length; i < len; i++) {
+			copy[i] = objClone(obj[i]);
+		}
+		return copy;
+	}
+
+	// Handle Object
+	if (obj instanceof Object) {
+		copy = {};
+		keys = Object.keys(obj);
+		for(var i = 0, l = keys.length; i < l; i++)
+			copy[keys[i]] = objClone(obj[keys[i]]);
+		return copy;
+	}
+
+	throw new Error("Unable to copy obj! Its type isn't supported.");
+}
+</script>
+</body>
